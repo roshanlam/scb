@@ -1,0 +1,6 @@
+# Janan's personal env stuff
+/newenv
+/db.sqlite3
+/.DS_Store
+/api/__pycache__
+
