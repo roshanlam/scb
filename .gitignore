@@ -4,3 +4,7 @@
 /.DS_Store
 /api/__pycache__
 
+#Eyssa gitignore
+/sim/.env
+/api/.env
+

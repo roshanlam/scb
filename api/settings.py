@@ -1,4 +1,9 @@
 from pathlib import Path
+import os
+from dotenv import load_dotenv
+
+
+load_dotenv()
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = "django-insecure-_v7pg@f7!h@er%pwpzon-&*dtvuncdkpt*oka#y^fq@tpq3p26"
@@ -15,7 +20,9 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
     "todo",
     "rest_framework",
-    "rest_framework.authtoken"
+    "rest_framework.authtoken",
+    "sim",
+    'corsheaders'
 ]
 
 MIDDLEWARE = [
@@ -26,6 +33,7 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    'corsheaders.middleware.CorsMiddleware',
 ]
 
 REST_FRAMEWORK = {
@@ -88,6 +96,10 @@ AUTH_PASSWORD_VALIDATORS = [
     },
 ]
 
+CORS_ALLOWED_ORIGINS = [
+    'http://localhost:5173',  # Add your frontend origin here
+]
+
 
 LANGUAGE_CODE = "en-us"
 TIME_ZONE = "UTC"
@@ -95,3 +107,9 @@ USE_I18N = True
 USE_TZ = True
 STATIC_URL = "static/"
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+SECURE_CROSS_ORIGIN_OPENER_POLICY = "unsafe-none"
+
+SESSION_ENGINE = 'django.contrib.sessions.backends.db'
+
+CORS_ALLOW_ALL_ORIGINS = True
