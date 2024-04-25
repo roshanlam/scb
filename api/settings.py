@@ -67,18 +67,18 @@ TEMPLATES = [
 WSGI_APPLICATION = "api.wsgi.application"
 DATABASES = {
     # This will be the code to use for postgresql
-    #"default": {
-    #    'ENGINE': 'django.db.backends.postgresql',
-    #    'NAME': 'sociocoders',
-    #    'USER': 'scadmin',
-    #    'PASSWORD': 'soicocoders',
-    #    'HOST': 'localhost',
-    #    'PORT': '5432'
-    #}
-    "default": {
-        "ENGINE": "django.db.backends.sqlite3",
-        "NAME": BASE_DIR / "db.sqlite3",
+    'default': {
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': 'sociocoders',
+        'USER': 'postgres',
+        'PASSWORD': 'Pass4@ll',
+        'HOST': 'localhost',
+        'PORT': '5432',
     }
+    # "default": {
+    #     "ENGINE": "django.db.backends.sqlite3",
+    #     "NAME": BASE_DIR / "db.sqlite3",
+    # }
 }
 
 AUTH_PASSWORD_VALIDATORS = [
