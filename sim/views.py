@@ -14,6 +14,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.contrib.sessions.models import Session
 from .models import CustomUser, Class
 
+
 @csrf_exempt
 def enroll_in_class(request):
     """
@@ -21,7 +22,7 @@ def enroll_in_class(request):
     """
     if request.method == 'POST':
         try:
-            #Get params from post
+            # Get params from post
             data = json.loads(request.body.decode('utf-8'))
             session_id = data.get('sessionID')
             class_id = data.get('classID')
@@ -57,6 +58,7 @@ def enroll_in_class(request):
     else:
         return JsonResponse({'error': 'Invalid request method'}, status=400)
 
+
 @csrf_exempt
 def post_to_forum(request):
     """
@@ -64,7 +66,7 @@ def post_to_forum(request):
     """
     if request.method == 'POST':
         try:
-            #Get params from post
+            # Get params from post
             data = json.loads(request.body.decode('utf-8'))
             session_id = data.get('sessionID')
             class_id = data.get('classID')
@@ -93,7 +95,8 @@ def post_to_forum(request):
                 return JsonResponse({'error': 'Title or content is missing'}, status=400)
 
             # Create the post with the retrieved user as the owner
-            post = Post.objects.create(user=user, class_field=class_obj, title=title, content=content)
+            post = Post.objects.create(
+                user=user, class_field=class_obj, title=title, content=content)
 
             return JsonResponse({'message': 'Post created successfully'}, status=201)
         except CustomUser.DoesNotExist:
@@ -141,8 +144,9 @@ def get_all_posts(request):
             if user in class_obj.students.all():
                 # Retrieve all posts for the class
                 posts = Post.objects.filter(class_field=class_obj)
-                post_data = [{'title': post.title, 'content': post.content, 'created_at': post.created_at} for post in posts]
-                
+                post_data = [{'title': post.title, 'content': post.content,
+                              'created_at': post.created_at} for post in posts]
+
                 return JsonResponse({'posts': post_data}, status=200)
             else:
                 return JsonResponse({'error': 'User is not enrolled in the specified class'}, status=403)
@@ -154,7 +158,53 @@ def get_all_posts(request):
             return JsonResponse({'error': str(e)}, status=500)
     else:
         return JsonResponse({'error': 'Invalid request method'}, status=400)
-    
+
+
+@csrf_exempt
+def get_enrolled_classes(request):
+    """
+    Retrieves all classes in which the user is enrolled.
+    """
+    if request.method == 'POST':
+        try:
+            # Get params from post
+            data = json.loads(request.body.decode('utf-8'))
+            session_id = data.get('sessionID')
+            print(session_id)
+
+            if not session_id:
+                return JsonResponse({'error': 'Session ID missing'}, status=400)
+
+            # Retrieve the session object using session_id
+            session = Session.objects.get(session_key=session_id)
+            session_user_data = session.get_decoded().get('user_data', {})
+
+            print("hello")
+
+            # Extract email from session user data
+            email = session_user_data.get('email')
+
+            if not email:
+                return JsonResponse({'error': 'Email not found in session data'}, status=400)
+
+            # Get the user object based on the email
+            user = CustomUser.objects.get(email=email)
+
+            # Retrieve all classes in which the user is enrolled
+            enrolled_classes = Class.objects.filter(students=user)
+
+            # Serialize the class data
+            class_data = [{'class_id': cls.id} for cls in enrolled_classes]
+
+            return JsonResponse({'enrolled_classes': class_data}, status=200)
+        except CustomUser.DoesNotExist:
+            return JsonResponse({'error': 'User not found'}, status=404)
+        except Exception as e:
+            return JsonResponse({'error': str(e)}, status=500)
+    else:
+        return JsonResponse({'error': 'Invalid request method'}, status=400)
+
+
 @csrf_exempt
 def auth_receiver(request):
     """
@@ -173,14 +223,16 @@ def auth_receiver(request):
             'redirect_uri': 'http://localhost:5173',
             'grant_type': 'authorization_code'
         }
-        token_response = requests.post('https://oauth2.googleapis.com/token', data=token_request_data)
+        token_response = requests.post(
+            'https://oauth2.googleapis.com/token', data=token_request_data)
         token_response_data = token_response.json()
         access_token = token_response_data.get('access_token')
 
         # Use the access token to retrieve user data if necessary
         if access_token:
             # Example: Fetch user data using the access token
-            user_data_response = requests.get('https://www.googleapis.com/oauth2/v3/userinfo', headers={'Authorization': f'Bearer {access_token}'})
+            user_data_response = requests.get(
+                'https://www.googleapis.com/oauth2/v3/userinfo', headers={'Authorization': f'Bearer {access_token}'})
             user_data = user_data_response.json()
 
             # Check if the user already exists
@@ -188,7 +240,8 @@ def auth_receiver(request):
                 user = CustomUser.objects.get(username=user_data['email'])
             except CustomUser.DoesNotExist:
                 # User doesn't exist, create a new one
-                user = CustomUser(username=user_data['email'], email=user_data['email'], user_type=2)
+                user = CustomUser(
+                    username=user_data['email'], email=user_data['email'], user_type=2)
                 user.save()
 
             # Set user type to student if not already set
@@ -215,6 +268,7 @@ def auth_receiver(request):
         print(f"Failed to exchange authorization code for token: {e}")
         return JsonResponse({'error': 'Failed to exchange authorization code for token'}, status=403)
 
+
 def sign_out(request, session_id):
     try:
         # Retrieve the session object using session_id
@@ -222,7 +276,7 @@ def sign_out(request, session_id):
 
         # Delete the session data
         session.delete()
-        
+
         # Optionally, perform additional cleanup or logging
         # ...
 
