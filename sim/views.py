@@ -14,6 +14,55 @@ from django.views.decorators.csrf import csrf_exempt
 from django.contrib.sessions.models import Session
 from .models import CustomUser, Class
 
+
+def get_session_user_data(session_id):
+    try:
+        session = Session.objects.get(session_key=session_id)
+        session_user_data = session.get_decoded().get('user_data', {})
+        return session_user_data.get('email')
+    except Session.DoesNotExist:
+        return None
+
+
+def get_user_by_email(email):
+    try:
+        return CustomUser.objects.get(email=email)
+    except CustomUser.DoesNotExist:
+        return None
+
+
+def create_response(data, status=200):
+    return JsonResponse(data, status=status)
+
+
+@csrf_exempt
+def get_user_points(request):
+    if request.method == 'POST':
+        try:
+            data = json.loads(request.body.decode('utf-8'))
+            session_id = data.get('sessionID')
+            email = data.get('email')
+
+            if not session_id or not email:
+                return create_response({'error': 'Session ID or email parameter missing'}, status=400)
+
+            session_email = get_session_user_data(session_id)
+            if not session_email or session_email != email:
+                return create_response({'error': 'Session user email does not match the provided email'}, status=400)
+
+            user = get_user_by_email(email)
+            if not user:
+                return create_response({'error': 'User not found'}, status=404)
+
+            points = user.points
+            return create_response({'points': points})
+
+        except Exception as e:
+            return create_response({'error': str(e)}, status=500)
+    else:
+        return create_response({'error': 'Invalid request method'}, status=400)
+
+
 @csrf_exempt
 def get_post_comments(request):
     if request.method == 'POST':
@@ -22,20 +71,15 @@ def get_post_comments(request):
             session_id = data.get('sessionID')
             post_id = data.get('postID')
             if not session_id or not post_id:
-                return JsonResponse({'error': 'Session ID or post ID missing'}, status=400)
-            
-            # Retrieve the session object using session_id
-            session = Session.objects.get(session_key=session_id)
-            session_user_data = session.get_decoded().get('user_data', {})
-            
-            # Extract email from session user data
-            email = session_user_data.get('email')
+                return create_response({'error': 'Session ID or post ID missing'}, status=400)
+
+            email = get_session_user_data(session_id)
             if not email:
-                return JsonResponse({'error': 'Email not found in session data'}, status=400)
-            
+                return create_response({'error': 'Email not found in session data'}, status=400)
+
             post = Post.objects.get(pk=post_id)
             sub_posts = post.sub_posts.all()
-            
+
             sub_post_data = []
             for sub_post in sub_posts:
                 sub_post_data.append({
@@ -45,112 +89,83 @@ def get_post_comments(request):
                     'created_at': sub_post.created_at,
                     # Add more fields as needed
                 })
-            
-            return JsonResponse({'sub_posts': sub_post_data}, status=200)
-        
+
+            return create_response({'sub_posts': sub_post_data})
+
         except Exception as e:
-            return JsonResponse({'error': str(e)}, status=500)
+            return create_response({'error': str(e)}, status=500)
     else:
-        return JsonResponse({'error': 'Invalid request method'}, status=400)
+        return create_response({'error': 'Invalid request method'}, status=400)
+
 
 @csrf_exempt
 def enroll_in_class(request):
-    """
-    Enrolls the user in the specified class.
-    """
     if request.method == 'POST':
         try:
-            # Get params from post
             data = json.loads(request.body.decode('utf-8'))
             session_id = data.get('sessionID')
             class_code = data.get('classCode')
-            print(session_id, class_code)
 
-            # Retrieve the session object using session_id
-            session = Session.objects.get(session_key=session_id)
-            session_user_data = session.get_decoded().get('user_data', {})
+            if not session_id or not class_code:
+                return create_response({'error': 'Session ID or class code missing'}, status=400)
 
-            # Extract email from session user data
-            email = session_user_data.get('email')
-
+            email = get_session_user_data(session_id)
             if not email:
-                return JsonResponse({'error': 'Email not found in session data'}, status=400)
+                return create_response({'error': 'Email not found in session data'}, status=400)
 
-            # Get the user object based on the email
-            user = CustomUser.objects.get(email=email)
+            user = get_user_by_email(email)
+            if not user:
+                return create_response({'error': 'User not found'}, status=404)
 
-            # Get the class object based on the class ID
             class_obj = Class.objects.get(class_code=class_code)
-
-            # Add the user to the class's students list
             class_obj.students.add(user)
-            return JsonResponse({'message': 'Enrolled in class successfully'}, status=200)
-        except Session.DoesNotExist:
-            return JsonResponse({'error': 'Session not found'}, status=404)
-        except CustomUser.DoesNotExist:
-            return JsonResponse({'error': 'User not found'}, status=404)
-        except Class.DoesNotExist:
-            return JsonResponse({'error': 'Class not found'}, status=404)
+
+            return create_response({'message': 'Enrolled in class successfully'})
+
         except Exception as e:
-            return JsonResponse({'error': str(e)}, status=500)
+            return create_response({'error': str(e)}, status=500)
     else:
-        return JsonResponse({'error': 'Invalid request method'}, status=400)
+        return create_response({'error': 'Invalid request method'}, status=400)
 
 
 @csrf_exempt
 def post_to_forum(request):
-    """
-    Creates a new post.
-    """
     if request.method == 'POST':
         try:
-            # Get params from post
             data = json.loads(request.body.decode('utf-8'))
             session_id = data.get('sessionID')
             class_id = data.get('classID')
             title = data.get('title')
             content = data.get('content')
-            print(session_id, class_id, title, content)
 
-            # Retrieve the session object using session_id
-            session = Session.objects.get(session_key=session_id)
-            session_user_data = session.get_decoded().get('user_data', {})
+            if not session_id or not class_id or not title or not content:
+                return create_response({'error': 'Session ID, class ID, title, or content missing'}, status=400)
 
-            # Extract email from session user data
-            email = session_user_data.get('email')
-
+            email = get_session_user_data(session_id)
             if not email:
-                return JsonResponse({'error': 'Email not found in session data'}, status=400)
+                return create_response({'error': 'Email not found in session data'}, status=400)
 
-            # Get the user object based on the email
-            user = CustomUser.objects.get(email=email)
+            user = get_user_by_email(email)
+            if not user:
+                return create_response({'error': 'User not found'}, status=404)
 
-            # Get the class object based on the class ID
             class_obj = Class.objects.get(pk=class_id)
 
-            # Check if title and content are not None
-            if title is None or content is None:
-                return JsonResponse({'error': 'Title or content is missing'}, status=400)
-
-            # Create the post with the retrieved user as the owner
             post = Post.objects.create(
                 user=user, class_field=class_obj, title=title, content=content)
 
-            return JsonResponse({'message': 'Post created successfully'}, status=201)
-        except CustomUser.DoesNotExist:
-            return JsonResponse({'error': 'User not found'}, status=404)
-        except Class.DoesNotExist:
-            return JsonResponse({'error': 'Class not found'}, status=404)
+            return create_response({'message': 'Post created successfully'}, status=201)
+
         except Exception as e:
-            return JsonResponse({'error': str(e)}, status=500)
+            return create_response({'error': str(e)}, status=500)
     else:
-        return JsonResponse({'error': 'Invalid request method'}, status=400)
+        return create_response({'error': 'Invalid request method'}, status=400)
+
+
 @csrf_exempt
 def post_comment_to_forum(request):
-    """Creates a new post or sub-post."""
     if request.method == 'POST':
         try:
-            # Get params from post data
             data = json.loads(request.body.decode('utf-8'))
             session_id = data.get('sessionID')
             class_id = data.get('classID')
@@ -159,24 +174,18 @@ def post_comment_to_forum(request):
             parent_post_id = data.get('parentPostID')
 
             if not session_id or not class_id or not title or not content:
-                return JsonResponse({'error': 'Session ID, class ID, title, or content missing'}, status=400)
+                return create_response({'error': 'Session ID, class ID, title, or content missing'}, status=400)
 
-            # Retrieve the session object using session_id
-            session = Session.objects.get(session_key=session_id)
-            session_user_data = session.get_decoded().get('user_data', {})
-
-            # Extract email from session user data
-            email = session_user_data.get('email')
+            email = get_session_user_data(session_id)
             if not email:
-                return JsonResponse({'error': 'Email not found in session data'}, status=400)
+                return create_response({'error': 'Email not found in session data'}, status=400)
 
-            # Get the user object based on the email
-            user = CustomUser.objects.get(email=email)
+            user = get_user_by_email(email)
+            if not user:
+                return create_response({'error': 'User not found'}, status=404)
 
-            # Get the class object based on the class ID
             class_obj = Class.objects.get(pk=class_id)
 
-            # Create a top-level post
             if not parent_post_id:
                 post = Post.objects.create(
                     user=user,
@@ -184,7 +193,6 @@ def post_comment_to_forum(request):
                     title=title,
                     content=content
                 )
-            # Create a sub-post (reply or comment)
             else:
                 parent_post = Post.objects.get(pk=parent_post_id)
                 post = Post.objects.create(
@@ -193,49 +201,38 @@ def post_comment_to_forum(request):
                     title=title,
                     content=content,
                 )
-                # Add the sub-post to the parent post
                 parent_post.sub_posts.add(post)
 
-            return JsonResponse({'message': 'Post created successfully'}, status=201)
-        except CustomUser.DoesNotExist:
-            return JsonResponse({'error': 'User not found'}, status=404)
-        except Class.DoesNotExist:
-            return JsonResponse({'error': 'Class not found'}, status=404)
+            return create_response({'message': 'Post created successfully'}, status=201)
         except Exception as e:
-            return JsonResponse({'error': str(e)}, status=500)
+            return create_response({'error': str(e)}, status=500)
     else:
-        return JsonResponse({'error': 'Invalid request method'}, status=400)
+        return create_response({'error': 'Invalid request method'}, status=400)
+
 
 @csrf_exempt
 def get_all_posts(request):
-    """Retrieves all posts and sub-posts for a class."""
     if request.method == 'POST':
         try:
-            # Get params from post data
             data = json.loads(request.body.decode('utf-8'))
             session_id = data.get('sessionID')
             class_id = data.get('classID')
 
             if not session_id or not class_id:
-                return JsonResponse({'error': 'Session ID or class ID missing'}, status=400)
+                return create_response({'error': 'Session ID or class ID missing'}, status=400)
 
-            # Retrieve the session object using session_id
-            session = Session.objects.get(session_key=session_id)
-            session_user_data = session.get_decoded().get('user_data', {})
-
-            # Extract email from session user data
-            email = session_user_data.get('email')
+            email = get_session_user_data(session_id)
             if not email:
-                return JsonResponse({'error': 'Email not found in session data'}, status=400)
+                return create_response({'error': 'Email not found in session data'}, status=400)
 
-            # Get the user object based on the email
-            user = CustomUser.objects.get(email=email)
+            user = get_user_by_email(email)
+            if not user:
+                return create_response({'error': 'User not found'}, status=404)
 
-            # Get the class object based on the class ID
             class_obj = Class.objects.get(pk=class_id)
 
-            # Retrieve all top-level posts for the class
-            top_level_posts = Post.objects.filter(class_field=class_obj, parent_post__isnull=True)
+            top_level_posts = Post.objects.filter(
+                class_field=class_obj, parent_post__isnull=True)
 
             post_data = []
             for post in top_level_posts:
@@ -256,93 +253,72 @@ def get_all_posts(request):
                     ]
                 })
 
-            return JsonResponse({'posts': post_data}, status=200)
-        except CustomUser.DoesNotExist:
-            return JsonResponse({'error': 'User not found'}, status=404)
-        except Class.DoesNotExist:
-            return JsonResponse({'error': 'Class not found'}, status=404)
+            return create_response({'posts': post_data}, status=200)
         except Exception as e:
-            return JsonResponse({'error': str(e)}, status=500)
+            return create_response({'error': str(e)}, status=500)
     else:
-        return JsonResponse({'error': 'Invalid request method'}, status=400)
-    
+        return create_response({'error': 'Invalid request method'}, status=400)
+
+
 @csrf_exempt
 def get_enrolled_classes(request):
-    """
-    Retrieves all classes in which the user is enrolled.
-    """
     if request.method == 'POST':
         try:
-            # Get params from post
             data = json.loads(request.body.decode('utf-8'))
             session_id = data.get('sessionID')
-            print(session_id)
 
             if not session_id:
-                return JsonResponse({'error': 'Session ID missing'}, status=400)
+                return create_response({'error': 'Session ID missing'}, status=400)
 
-            # Retrieve the session object using session_id
-            session = Session.objects.get(session_key=session_id)
-            session_user_data = session.get_decoded().get('user_data', {})
-
-            # Extract email from session user data
-            email = session_user_data.get('email')
-
+            email = get_session_user_data(session_id)
             if not email:
-                return JsonResponse({'error': 'Email not found in session data'}, status=400)
+                return create_response({'error': 'Email not found in session data'}, status=400)
 
-            # Get the user object based on the email
-            user = CustomUser.objects.get(email=email)
+            user = get_user_by_email(email)
+            if not user:
+                return create_response({'error': 'User not found'}, status=404)
 
-            # Retrieve all classes in which the user is enrolled
             enrolled_classes = Class.objects.filter(students=user)
 
-            # Serialize the class data
-            class_data = [{'id': cls.id, 'class_code': cls.class_code, 'class_name': cls.class_name} for cls in enrolled_classes]
+            class_data = [{'id': cls.id, 'class_code': cls.class_code,
+                           'class_name': cls.class_name} for cls in enrolled_classes]
 
-            return JsonResponse({'enrolled_classes': class_data}, status=200)
-        except CustomUser.DoesNotExist:
-            return JsonResponse({'error': 'User not found'}, status=404)
+            return create_response({'enrolled_classes': class_data}, status=200)
         except Exception as e:
-            return JsonResponse({'error': str(e)}, status=500)
+            return create_response({'error': str(e)}, status=500)
     else:
-        return JsonResponse({'error': 'Invalid request method'}, status=400)
-    
+        return create_response({'error': 'Invalid request method'}, status=400)
+
+
 @csrf_exempt
 def create_new_class(request):
-    """
-    Creates a new class with class name and ID passed in from the JSON request.
-    """
     if request.method == 'POST':
         try:
-            # Get params from post
             data = json.loads(request.body.decode('utf-8'))
             session_id = data.get('sessionID')
             class_name = data.get('class_name')
             class_code = data.get('class_code')
 
             if not class_name or not class_code or not session_id:
-                return JsonResponse({'error': 'Class name, code, or session ID missing'}, status=400)
+                return create_response({'error': 'Class name, code, or session ID missing'}, status=400)
 
-            # Retrieve the session object using session_id
-            session = Session.objects.get(session_key=session_id)
-            session_user_data = session.get_decoded().get('user_data', {})
-            email = session_user_data.get('email')
+            session_user_data = get_session_user_data(session_id)
+            if not session_user_data:
+                return create_response({'error': 'Email not found in session data'}, status=400)
 
-            if not email:
-                return JsonResponse({'error': 'Email not found in session data'}, status=400)
+            user = get_user_by_email(session_user_data)
+            if not user:
+                return create_response({'error': 'User not found'}, status=404)
 
-            # Get the user object based on the email
-            user = CustomUser.objects.get(email=email)
+            new_class = Class.objects.create(
+                class_name=class_name, class_code=class_code, teacher=user)
 
-            # Create a new class object
-            new_class = Class.objects.create(class_name=class_name, class_code=class_code, teacher=user)
-
-            return JsonResponse({'message': 'Class created successfully'}, status=201)
+            return create_response({'message': 'Class created successfully'}, status=201)
         except Exception as e:
-            return JsonResponse({'error': str(e)}, status=500)
+            return create_response({'error': str(e)}, status=500)
     else:
-        return JsonResponse({'error': 'Invalid request method'}, status=400)
+        return create_response({'error': 'Invalid request method'}, status=400)
+
 
 @csrf_exempt
 def auth_receiver(request):

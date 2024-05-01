@@ -11,4 +11,5 @@ urlpatterns = [
     path('create-new-class/', views.create_new_class, name='create_new_class'),  # URL for creating a class
     path('post-comment-to-forum/', views.post_comment_to_forum, name='post_comment_to_forum'),  # URL for posting a comment
     path('get-post-comments/', views.get_post_comments, name='get_post_comments'),  # URL for retrieving post comments
+    path('get-user-points/', views.get_user_points, name='get_user_points'),  # URL for retrieving user points
 ]
