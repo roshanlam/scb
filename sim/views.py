@@ -14,6 +14,44 @@ from django.views.decorators.csrf import csrf_exempt
 from django.contrib.sessions.models import Session
 from .models import CustomUser, Class
 
+@csrf_exempt
+def get_post_comments(request):
+    if request.method == 'POST':
+        try:
+            data = json.loads(request.body.decode('utf-8'))
+            session_id = data.get('sessionID')
+            post_id = data.get('postID')
+            if not session_id or not post_id:
+                return JsonResponse({'error': 'Session ID or post ID missing'}, status=400)
+            
+            # Retrieve the session object using session_id
+            session = Session.objects.get(session_key=session_id)
+            session_user_data = session.get_decoded().get('user_data', {})
+            
+            # Extract email from session user data
+            email = session_user_data.get('email')
+            if not email:
+                return JsonResponse({'error': 'Email not found in session data'}, status=400)
+            
+            post = Post.objects.get(pk=post_id)
+            sub_posts = post.sub_posts.all()
+            
+            sub_post_data = []
+            for sub_post in sub_posts:
+                sub_post_data.append({
+                    'id': sub_post.id,
+                    'title': sub_post.title,
+                    'content': sub_post.content,
+                    'created_at': sub_post.created_at,
+                    # Add more fields as needed
+                })
+            
+            return JsonResponse({'sub_posts': sub_post_data}, status=200)
+        
+        except Exception as e:
+            return JsonResponse({'error': str(e)}, status=500)
+    else:
+        return JsonResponse({'error': 'Invalid request method'}, status=400)
 
 @csrf_exempt
 def enroll_in_class(request):
@@ -107,7 +145,6 @@ def post_to_forum(request):
             return JsonResponse({'error': str(e)}, status=500)
     else:
         return JsonResponse({'error': 'Invalid request method'}, status=400)
-
 @csrf_exempt
 def post_comment_to_forum(request):
     """Creates a new post or sub-post."""
@@ -120,7 +157,6 @@ def post_comment_to_forum(request):
             title = data.get('title')
             content = data.get('content')
             parent_post_id = data.get('parentPostID')
-            print(title, content)
 
             if not session_id or not class_id or not title or not content:
                 return JsonResponse({'error': 'Session ID, class ID, title, or content missing'}, status=400)
@@ -148,7 +184,6 @@ def post_comment_to_forum(request):
                     title=title,
                     content=content
                 )
-
             # Create a sub-post (reply or comment)
             else:
                 parent_post = Post.objects.get(pk=parent_post_id)
@@ -157,8 +192,9 @@ def post_comment_to_forum(request):
                     class_field=class_obj,
                     title=title,
                     content=content,
-                    parent_post=parent_post
                 )
+                # Add the sub-post to the parent post
+                parent_post.sub_posts.add(post)
 
             return JsonResponse({'message': 'Post created successfully'}, status=201)
         except CustomUser.DoesNotExist:
