@@ -13,7 +13,8 @@ class CustomUser(AbstractUser):
     user_permissions = models.ManyToManyField('auth.Permission', related_name='customuser_set', blank=True)
 
 class Class(models.Model):
-    class_code = models.CharField(max_length=20, unique=True)
+    class_code = models.IntegerField(unique=True)
+    class_name = models.CharField(max_length=15, default='')
     teacher = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='classes_taught')
 
 class Post(models.Model):

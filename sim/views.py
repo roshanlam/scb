@@ -25,8 +25,8 @@ def enroll_in_class(request):
             # Get params from post
             data = json.loads(request.body.decode('utf-8'))
             session_id = data.get('sessionID')
-            class_id = data.get('classID')
-            print(session_id, class_id)
+            class_code = data.get('classCode')
+            print(session_id, class_code)
 
             # Retrieve the session object using session_id
             session = Session.objects.get(session_key=session_id)
@@ -42,7 +42,7 @@ def enroll_in_class(request):
             user = CustomUser.objects.get(email=email)
 
             # Get the class object based on the class ID
-            class_obj = Class.objects.get(pk=class_id)
+            class_obj = Class.objects.get(class_code=class_code)
 
             # Add the user to the class's students list
             class_obj.students.add(user)
@@ -179,8 +179,6 @@ def get_enrolled_classes(request):
             session = Session.objects.get(session_key=session_id)
             session_user_data = session.get_decoded().get('user_data', {})
 
-            print("hello")
-
             # Extract email from session user data
             email = session_user_data.get('email')
 
@@ -194,7 +192,7 @@ def get_enrolled_classes(request):
             enrolled_classes = Class.objects.filter(students=user)
 
             # Serialize the class data
-            class_data = [{'class_id': cls.id} for cls in enrolled_classes]
+            class_data = [{'id': cls.id, 'class_code': cls.class_code, 'class_name': cls.class_name} for cls in enrolled_classes]
 
             return JsonResponse({'enrolled_classes': class_data}, status=200)
         except CustomUser.DoesNotExist:
@@ -203,7 +201,42 @@ def get_enrolled_classes(request):
             return JsonResponse({'error': str(e)}, status=500)
     else:
         return JsonResponse({'error': 'Invalid request method'}, status=400)
+    
+@csrf_exempt
+def create_new_class(request):
+    """
+    Creates a new class with class name and ID passed in from the JSON request.
+    """
+    if request.method == 'POST':
+        try:
+            # Get params from post
+            data = json.loads(request.body.decode('utf-8'))
+            session_id = data.get('sessionID')
+            class_name = data.get('class_name')
+            class_code = data.get('class_code')
 
+            if not class_name or not class_code or not session_id:
+                return JsonResponse({'error': 'Class name, code, or session ID missing'}, status=400)
+
+            # Retrieve the session object using session_id
+            session = Session.objects.get(session_key=session_id)
+            session_user_data = session.get_decoded().get('user_data', {})
+            email = session_user_data.get('email')
+
+            if not email:
+                return JsonResponse({'error': 'Email not found in session data'}, status=400)
+
+            # Get the user object based on the email
+            user = CustomUser.objects.get(email=email)
+
+            # Create a new class object
+            new_class = Class.objects.create(class_name=class_name, class_code=class_code, teacher=user)
+
+            return JsonResponse({'message': 'Class created successfully'}, status=201)
+        except Exception as e:
+            return JsonResponse({'error': str(e)}, status=500)
+    else:
+        return JsonResponse({'error': 'Invalid request method'}, status=400)
 
 @csrf_exempt
 def auth_receiver(request):
