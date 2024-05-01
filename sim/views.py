@@ -108,15 +108,74 @@ def post_to_forum(request):
     else:
         return JsonResponse({'error': 'Invalid request method'}, status=400)
 
+@csrf_exempt
+def post_comment_to_forum(request):
+    """Creates a new post or sub-post."""
+    if request.method == 'POST':
+        try:
+            # Get params from post data
+            data = json.loads(request.body.decode('utf-8'))
+            session_id = data.get('sessionID')
+            class_id = data.get('classID')
+            title = data.get('title')
+            content = data.get('content')
+            parent_post_id = data.get('parentPostID')
+            print(title, content)
+
+            if not session_id or not class_id or not title or not content:
+                return JsonResponse({'error': 'Session ID, class ID, title, or content missing'}, status=400)
+
+            # Retrieve the session object using session_id
+            session = Session.objects.get(session_key=session_id)
+            session_user_data = session.get_decoded().get('user_data', {})
+
+            # Extract email from session user data
+            email = session_user_data.get('email')
+            if not email:
+                return JsonResponse({'error': 'Email not found in session data'}, status=400)
+
+            # Get the user object based on the email
+            user = CustomUser.objects.get(email=email)
+
+            # Get the class object based on the class ID
+            class_obj = Class.objects.get(pk=class_id)
+
+            # Create a top-level post
+            if not parent_post_id:
+                post = Post.objects.create(
+                    user=user,
+                    class_field=class_obj,
+                    title=title,
+                    content=content
+                )
+
+            # Create a sub-post (reply or comment)
+            else:
+                parent_post = Post.objects.get(pk=parent_post_id)
+                post = Post.objects.create(
+                    user=user,
+                    class_field=class_obj,
+                    title=title,
+                    content=content,
+                    parent_post=parent_post
+                )
+
+            return JsonResponse({'message': 'Post created successfully'}, status=201)
+        except CustomUser.DoesNotExist:
+            return JsonResponse({'error': 'User not found'}, status=404)
+        except Class.DoesNotExist:
+            return JsonResponse({'error': 'Class not found'}, status=404)
+        except Exception as e:
+            return JsonResponse({'error': str(e)}, status=500)
+    else:
+        return JsonResponse({'error': 'Invalid request method'}, status=400)
 
 @csrf_exempt
 def get_all_posts(request):
-    """
-    Retrieves all posts for a specific class and only displays posts belonging to classes in which the user is enrolled.
-    """
+    """Retrieves all posts and sub-posts for a class."""
     if request.method == 'POST':
         try:
-            # Get params from post
+            # Get params from post data
             data = json.loads(request.body.decode('utf-8'))
             session_id = data.get('sessionID')
             class_id = data.get('classID')
@@ -130,26 +189,38 @@ def get_all_posts(request):
 
             # Extract email from session user data
             email = session_user_data.get('email')
-
             if not email:
                 return JsonResponse({'error': 'Email not found in session data'}, status=400)
 
             # Get the user object based on the email
             user = CustomUser.objects.get(email=email)
 
-            # Retrieve the class object based on the class ID
+            # Get the class object based on the class ID
             class_obj = Class.objects.get(pk=class_id)
 
-            # Check if the user is enrolled in the class
-            if user in class_obj.students.all():
-                # Retrieve all posts for the class
-                posts = Post.objects.filter(class_field=class_obj)
-                post_data = [{'title': post.title, 'content': post.content,
-                              'created_at': post.created_at} for post in posts]
+            # Retrieve all top-level posts for the class
+            top_level_posts = Post.objects.filter(class_field=class_obj, parent_post__isnull=True)
 
-                return JsonResponse({'posts': post_data}, status=200)
-            else:
-                return JsonResponse({'error': 'User is not enrolled in the specified class'}, status=403)
+            post_data = []
+            for post in top_level_posts:
+                sub_posts = post.sub_posts.all()
+                post_data.append({
+                    'id': post.id,
+                    'title': post.title,
+                    'content': post.content,
+                    'created_at': post.created_at,
+                    'teacher_post': post.user == class_obj.teacher,
+                    'sub_posts': [
+                        {
+                            'id': sub_post.id,
+                            'content': sub_post.content,
+                            'created_at': sub_post.created_at,
+                            'teacher_post': sub_post.user == class_obj.teacher
+                        } for sub_post in sub_posts
+                    ]
+                })
+
+            return JsonResponse({'posts': post_data}, status=200)
         except CustomUser.DoesNotExist:
             return JsonResponse({'error': 'User not found'}, status=404)
         except Class.DoesNotExist:
@@ -158,8 +229,7 @@ def get_all_posts(request):
             return JsonResponse({'error': str(e)}, status=500)
     else:
         return JsonResponse({'error': 'Invalid request method'}, status=400)
-
-
+    
 @csrf_exempt
 def get_enrolled_classes(request):
     """

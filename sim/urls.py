@@ -9,4 +9,5 @@ urlpatterns = [
     path('enroll-in-class/', views.enroll_in_class, name='enroll_in_class'),  # URL for enrolling in a class
     path('get-enrolled-classes/', views.get_enrolled_classes, name='get_enrolled_classes'),  # URL for enrolling in a class
     path('create-new-class/', views.create_new_class, name='create_new_class'),  # URL for creating a class
+    path('post-comment-to-forum/', views.post_comment_to_forum, name='post_comment_to_forum'),  # URL for posting a comment
 ]

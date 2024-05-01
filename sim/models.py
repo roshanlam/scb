@@ -23,6 +23,7 @@ class Post(models.Model):
     title = models.CharField(max_length=255)
     content = models.TextField()
     created_at = models.DateTimeField(auto_now_add=True)
+    parent_post = models.ForeignKey('self', on_delete=models.CASCADE, null=True, blank=True, related_name='sub_posts')
 
 class Reply(models.Model):
     post = models.ForeignKey(Post, on_delete=models.CASCADE, related_name='replies')
