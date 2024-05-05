@@ -12,7 +12,7 @@ from .models import CustomUser, Class, Post
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.contrib.sessions.models import Session
-from .models import CustomUser, Class
+from .models import CustomUser, Class, Video, VideoQuestion
 
 
 def get_session_user_data(session_id):
@@ -34,6 +34,144 @@ def get_user_by_email(email):
 def create_response(data, status=200):
     return JsonResponse(data, status=status)
 
+@csrf_exempt
+def update_user_points(request):
+    if request.method == 'POST':
+        try:
+            data = json.loads(request.body.decode('utf-8'))
+            session_id = data.get('sessionID')
+            points_delta = data.get('pointsDelta')  # Assuming pointsDelta is sent in the request
+
+            email = get_session_user_data(session_id)
+            if not email:
+                return JsonResponse({'error': 'Email not found in session data'}, status=400)
+
+            if not session_id or not email or not points_delta:
+                return create_response({'error': 'Session ID, email, or pointsDelta parameter missing'}, status=400)
+
+            session_email = get_session_user_data(session_id)
+            if not session_email or session_email != email:
+                return create_response({'error': 'Session user email does not match the provided email'}, status=400)
+
+            user = get_user_by_email(email)
+            if not user:
+                return create_response({'error': 'User not found'}, status=404)
+
+            # Update user points
+            user.points += points_delta
+            user.save()
+
+            return create_response({'success': 'User points updated successfully'})
+
+        except Exception as e:
+            return create_response({'error': str(e)}, status=500)
+    else:
+        return create_response({'error': 'Invalid request method'}, status=400)
+
+
+@csrf_exempt
+def post_class_video(request):
+    if request.method == 'POST':
+        try:
+            data = json.loads(request.body.decode('utf-8'))
+            session_id = data.get('sessionID')
+            video_url = data.get('videoURL')
+            video_title = data.get('videoTitle')
+            class_id = data.get('classID')
+
+            if not session_id or not video_url or not video_title or not class_id:
+                return create_response({'error': 'Session ID, video URL, video title, or class ID parameter missing'}, status=400)
+
+            # Check if the class exists
+            try:
+                class_instance = Class.objects.get(pk=class_id)
+            except Class.DoesNotExist:
+                return create_response({'error': 'Class with ID {} does not exist'.format(class_id)}, status=404)
+
+            # Create a new Video instance
+            video = Video.objects.create(
+                video_link=video_url,
+                title=video_title,
+                class_field=class_instance
+            )
+
+            # Get Video transcription and generate questions and answers to replace the dummy logic below
+
+            # Create a dummy VideoQuestion (you can replace this with your logic to generate questions)
+            # For now, let's just create one dummy question
+            question = 'What did you learn from this video?'
+            answers = ['A', 'B', 'C', 'D']
+            correct_answer_index = 0  # Assuming 'A' is the correct answer
+            video_question = VideoQuestion.objects.create(
+                question=question,
+                answers=answers,
+                correct_answer_index=correct_answer_index,
+            )
+
+            # Add the video to the class's video list
+            class_instance.videos.add(video)
+
+            # Associate the VideoQuestion with the Video
+            video.video_questions.add(video_question)
+
+            return create_response({'success': 'Video posted and questions generated successfully'})
+
+        except Exception as e:
+            return create_response({'error': str(e)}, status=500)
+    else:
+        return create_response({'error': 'Invalid request method'}, status=400)
+
+@csrf_exempt
+def get_class_video_list(request):
+    if request.method == 'POST':
+        try:
+            data = json.loads(request.body.decode('utf-8'))
+            session_id = data.get('sessionID')
+            class_id = data.get('classID')
+
+            if not session_id:
+                return JsonResponse({'error': 'Session ID missing'}, status=400)
+
+            email = get_session_user_data(session_id)
+            if not email:
+                return JsonResponse({'error': 'Email not found in session data'}, status=400)
+
+            if not class_id:
+                return JsonResponse({'error': 'Class ID missing'}, status=400)
+
+            try:
+                class_instance = Class.objects.get(pk=class_id)
+                videos = class_instance.videos.all()
+                video_list = []
+
+                for video in videos:
+                    video_data = {
+                        'title': video.title,
+                        'video_link': video.video_link,
+                        'questions': []
+                    }
+
+                    # Fetch associated questions for the video
+                    questions = video.video_questions.all()
+                    for question in questions:
+                        question_data = {
+                            'question': question.question,
+                            'answers': question.answers,
+                            'correct_answer_index': question.correct_answer_index
+                        }
+                        video_data['questions'].append(question_data)
+
+                    video_list.append(video_data)
+
+                print(len(video_list))
+                return JsonResponse({'videos': video_list})
+            except Class.DoesNotExist:
+                return JsonResponse({'error': 'Class with ID {} does not exist'.format(class_id)}, status=404)
+
+        except Exception as e:
+            return JsonResponse({'error': str(e)}, status=500)
+    else:
+        return JsonResponse({'error': 'Invalid request method'}, status=400)
 
 @csrf_exempt
 def get_user_points(request):
@@ -41,14 +179,13 @@ def get_user_points(request):
         try:
             data = json.loads(request.body.decode('utf-8'))
             session_id = data.get('sessionID')
-            email = data.get('email')
 
-            if not session_id or not email:
-                return create_response({'error': 'Session ID or email parameter missing'}, status=400)
+            if not session_id:
+                return create_response({'error': 'Session ID missing'}, status=400)
 
-            session_email = get_session_user_data(session_id)
-            if not session_email or session_email != email:
-                return create_response({'error': 'Session user email does not match the provided email'}, status=400)
+            email = get_session_user_data(session_id)
+            if not email:
+                return create_response({'error': 'Email not found in session data'}, status=400)
 
             user = get_user_by_email(email)
             if not user:

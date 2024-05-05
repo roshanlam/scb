@@ -16,14 +16,13 @@ class CustomUser(AbstractUser):
         'auth.Group', related_name='customuser_set', blank=True)
     user_permissions = models.ManyToManyField(
         'auth.Permission', related_name='customuser_set', blank=True)
-
-
+    
 class Class(models.Model):
     class_code = models.IntegerField(unique=True)
     class_name = models.CharField(max_length=15, default='')
     teacher = models.ForeignKey(
         CustomUser, on_delete=models.CASCADE, related_name='classes_taught')
-
+    videos = models.ManyToManyField('Video', related_name='classes', blank=True)
 
 class Post(models.Model):
     user = models.ForeignKey(
@@ -36,11 +35,14 @@ class Post(models.Model):
     sub_posts = models.ManyToManyField(
         'self', blank=True, symmetrical=False, related_name='parent_post')
 
+class Video(models.Model):
+    video_link = models.URLField()
+    title = models.CharField(max_length=255)
+    class_field = models.ForeignKey(
+        Class, on_delete=models.CASCADE, related_name='class_videos')
+    video_questions = models.ManyToManyField('VideoQuestion', related_name='videos', blank=True)
 
-class Reply(models.Model):
-    post = models.ForeignKey(
-        Post, on_delete=models.CASCADE, related_name='replies')
-    user = models.ForeignKey(
-        CustomUser, on_delete=models.CASCADE, related_name='reply_users')
-    content = models.TextField()
-    created_at = models.DateTimeField(auto_now_add=True)
+class VideoQuestion(models.Model):
+    question = models.CharField(max_length=255)
+    answers = models.JSONField()  # Store list of strings as JSON
+    correct_answer_index = models.PositiveSmallIntegerField()
