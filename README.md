@@ -1,7 +1,8 @@
 #Google Auth
 - Utilizes sessions instead of JWT
-- setup .env file with oauth clientid and secret once google auth setup in google auth console
-- replace google auth clientid in frontend auth page to get it to run
+- create new .env file in sim folder and add GOOGLE_OAUTH_CLIENT_ID and GOOGLE_OAUTH_CLIENT_SECRET
+- Open Google console, go to api's and services, oauth 2.0, click create credentials, create new oauth client id, and paste id into new .env file
+- Open index.vue in scf frontend folder and update clientid to your clientid
 - pip install django-cors-headers
 
 #Setup local postgres
