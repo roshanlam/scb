@@ -35,6 +35,13 @@ class Post(models.Model):
     sub_posts = models.ManyToManyField(
         'self', blank=True, symmetrical=False, related_name='parent_post')
 
+class Comment(models.Model):
+    post = models.ForeignKey(Post, related_name='comments', on_delete=models.CASCADE)
+    user = models.ForeignKey(CustomUser, on_delete=models.CASCADE)
+    content = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
 class Video(models.Model):
     video_link = models.URLField()
     title = models.CharField(max_length=255)

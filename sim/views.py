@@ -7,7 +7,7 @@ from django.views.decorators.csrf import csrf_exempt
 import requests
 from django.contrib.sessions.models import Session
 
-from .models import CustomUser, Class, Post
+from .models import CustomUser, Class, Post, Comment
 
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
@@ -234,6 +234,39 @@ def get_post_comments(request):
     else:
         return create_response({'error': 'Invalid request method'}, status=400)
 
+@csrf_exempt
+def get_comment(request, comment_id):
+    try:
+        comment = Commment.objects.get(pk=comment_id)
+        return JsonResponse({'id': comment.id, 'content': comment.content}, status=200)
+    except Comment.DoesNotExist:
+        return JsonResponse({'error': 'Comment not found'}, status=404)
+
+@csrf_exempt
+def update_comment(request, comment_id):
+    try:
+        data = json.loads(request.body.decode('utf-8'))
+        session_id = request.session.session_key
+        content = data.get('content')
+
+        if not session_id:
+            return JsonResponse({'error': 'Session ID missing'}, status=400)
+        
+        email = get_session_user_data(session_id)
+        if not email:
+            return JsonResponse({'error': 'Email not found in session data'}, status=400)
+        
+        comment = Post.objects.get(pk=comment_id)  # Assuming comment_id is correct and exists
+        if not comment:
+            return JsonResponse({'error': 'Comment not found'}, status=404)
+
+        comment.content = content
+        comment.save()
+
+        return JsonResponse({'message': 'Comment updated successfully', 'id': comment.id, 'new_content': comment.content}, status=200)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
 
 @csrf_exempt
 def enroll_in_class(request):
@@ -268,6 +301,9 @@ def enroll_in_class(request):
 @csrf_exempt
 def post_to_forum(request):
     if request.method == 'POST':
+        print(request.body)
+        data = json.loads(request.body.decode('utf-8'))
+        print(data)
         try:
             data = json.loads(request.body.decode('utf-8'))
             session_id = data.get('sessionID')
@@ -436,26 +472,22 @@ def create_new_class(request):
             class_name = data.get('class_name')
             class_code = data.get('class_code')
 
-            if not class_name or not class_code or not session_id:
-                return create_response({'error': 'Class name, code, or session ID missing'}, status=400)
+            if not (class_name and class_code and session_id):
+                return create_response({'error': 'All parameters must be provided'}, status=400)
 
-            session_user_data = get_session_user_data(session_id)
-            if not session_user_data:
-                return create_response({'error': 'Email not found in session data'}, status=400)
-
-            user = get_user_by_email(session_user_data)
+            user = get_user_by_email(get_session_user_data(session_id))
             if not user:
                 return create_response({'error': 'User not found'}, status=404)
 
-            new_class = Class.objects.create(
-                class_name=class_name, class_code=class_code, teacher=user)
-
+            new_class = Class.objects.create(class_name=class_name, class_code=class_code, teacher=user)
             return create_response({'message': 'Class created successfully'}, status=201)
+
         except Exception as e:
+            import traceback
+            traceback.print_exc()
             return create_response({'error': str(e)}, status=500)
     else:
         return create_response({'error': 'Invalid request method'}, status=400)
-
 
 @csrf_exempt
 def auth_receiver(request):
