@@ -25,3 +25,9 @@
 
 To check there are no errors run the following: 
 `docker-compose logs`
+
+To stop and remove all related Docker containers, networks, and the default volume, use:
+`docker-compose down`
+
+To remove data volume (will delete database data):
+`docker-compose down -v`
