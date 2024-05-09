@@ -18,9 +18,6 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
-    "todo",
-    "rest_framework",
-    "rest_framework.authtoken",
     "sim",
     'corsheaders'
 ]
@@ -35,16 +32,6 @@ MIDDLEWARE = [
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     'corsheaders.middleware.CorsMiddleware',
 ]
-
-REST_FRAMEWORK = {
-    'DEFAULT_AUTHENTICATION_CLASSES': [
-        'rest_framework.authentication.TokenAuthentication',
-    ],
-    'DEFAULT_RENDERER_CLASSES': (
-        'rest_framework.renderers.JSONRenderer',
-        'rest_framework.renderers.BrowsableAPIRenderer',
-    )
-}
 
 ROOT_URLCONF = "api.urls"
 
@@ -68,11 +55,11 @@ WSGI_APPLICATION = "api.wsgi.application"
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.postgresql",
-        "NAME": os.getenv("DB_NAME","sociocoders"),
-        "USER": os.getenv("DB_USER","postgres"),
-        "PASSWORD": os.getenv("DB_PASSWORD","Pass4@ll"),
-        "HOST": os.getenv('DB_HOST', "localhost"),
-        "PORT": os.getenv('DB_PORT', '5432'),
+        "NAME": os.getenv("DB_NAME"),
+        "USER": os.getenv("DB_USER"),
+        "PASSWORD": os.getenv("DB_PASSWORD"),
+        "HOST": os.getenv('DB_HOST'),
+        "PORT": os.getenv('DB_PORT'),
     }
 }
 

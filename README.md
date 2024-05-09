@@ -13,3 +13,15 @@
 
 # General Server Commands
 - RUN SERVER: python3 manage.py runserver localhost:8000
+
+
+# Run Docker/Docker Compose
+
+1. Install the Docker App and make sure it is running
+
+2. Run the following command: `docker-compose build`
+
+3. Run the following command: `docker-compose up -d`
+
+To check there are no errors run the following: 
+`docker-compose logs`
