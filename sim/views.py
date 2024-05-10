@@ -1,11 +1,17 @@
 import json
 import os
+import re
 
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import render, redirect
 from django.views.decorators.csrf import csrf_exempt
 import requests
 from django.contrib.sessions.models import Session
+from openai import OpenAI
+
+client = OpenAI()
+
+from youtube_transcript_api import YouTubeTranscriptApi
 
 from .models import CustomUser, Class, Post, Comment
 
@@ -68,6 +74,14 @@ def update_user_points(request):
     else:
         return create_response({'error': 'Invalid request method'}, status=400)
 
+def parse_youtube_url(url):
+    # Regular expression pattern to match YouTube video ID
+    pattern = r"(?<=v=)[a-zA-Z0-9_-]+(?=&|\?|$)"
+    match = re.search(pattern, url)
+    if match:
+        return match.group(0)
+    else:
+        return None
 
 @csrf_exempt
 def post_class_video(request):
@@ -95,17 +109,54 @@ def post_class_video(request):
                 class_field=class_instance
             )
 
-            # Get Video transcription and generate questions and answers to replace the dummy logic below
+            # Get Video transcription
+            video_id = parse_youtube_url(video_url)
+            video_transcript = YouTubeTranscriptApi.get_transcript(video_id)
 
-            # Create a dummy VideoQuestion (you can replace this with your logic to generate questions)
-            # For now, let's just create one dummy question
-            question = 'What did you learn from this video?'
-            answers = ['A', 'B', 'C', 'D']
-            correct_answer_index = 0  # Assuming 'A' is the correct answer
+            # Convert transcript into a single string
+            transcript_text = ' '.join([item['text'] for item in video_transcript])
+            print(transcript_text)
+
+            response = ''
+            try:
+                response = client.completions.create(model="gpt-3.5-turbo-instruct",
+                prompt="Write in format: 'QUESTION:(NEWLINE HERE) generate short single question based on this transcript: " + transcript_text + "(NEWLINE HERE) POSSIBLE ANSWERS:(NEWLINE HERE) generate 4 answer choices A,B,C,D(MAKE NEWLINE HERE FOR EACH POSSIBLE ANSWER) (NEWLINE HERE), ANSWER:(NEWLINE HERE) generate correct answer choice (NEWLINE HERE)",
+                max_tokens=150)
+            except Exception as e:
+                print("An error occurred while generating the question:", e)
+            
+            answers = []
+
+            gptResponse = response.choices[0].text
+            print(gptResponse)
+            split_text = gptResponse.split('\n')
+            filtered_list = [item for item in split_text if item.strip()]
+            print(filtered_list)
+
+            question = filtered_list[1]
+            answers.append(filtered_list[3][3:])
+            answers.append(filtered_list[4][3:])
+            answers.append(filtered_list[5][3:])
+            answers.append(filtered_list[6][3:])
+            answer = filtered_list[8][:3]
+            answer = answer[:1]
+            if answer == "A":
+                answer = 1
+            elif answer == "B":
+                answer = 2
+            elif answer == "C":
+                answer = 3
+            elif answer == "D":
+                answer = 4
+            
+            print("QUESTION: ", question)
+            print("ANSWERS:", answers)
+            print("ANSWER: ", answer)
+
             video_question = VideoQuestion.objects.create(
                 question=question,
                 answers=answers,
-                correct_answer_index=correct_answer_index,
+                correct_answer_index=answer,
             )
 
             # Add the video to the class's video list
@@ -199,7 +250,6 @@ def get_user_points(request):
     else:
         return create_response({'error': 'Invalid request method'}, status=400)
 
-
 @csrf_exempt
 def get_post_comments(request):
     if request.method == 'POST':
@@ -217,8 +267,11 @@ def get_post_comments(request):
             post = Post.objects.get(pk=post_id)
             sub_posts = post.sub_posts.all()
 
+            # Sort sub_posts by creation date, newest to oldest
+            sorted_sub_posts = sorted(sub_posts, key=lambda x: x.created_at)
+
             sub_post_data = []
-            for sub_post in sub_posts:
+            for sub_post in sorted_sub_posts:
                 sub_post_data.append({
                     'id': sub_post.id,
                     'title': sub_post.title,
@@ -251,11 +304,11 @@ def update_comment(request, comment_id):
 
         if not session_id:
             return JsonResponse({'error': 'Session ID missing'}, status=400)
-        
+
         email = get_session_user_data(session_id)
         if not email:
             return JsonResponse({'error': 'Email not found in session data'}, status=400)
-        
+
         comment = Post.objects.get(pk=comment_id)  # Assuming comment_id is correct and exists
         if not comment:
             return JsonResponse({'error': 'Comment not found'}, status=404)
@@ -326,6 +379,23 @@ def post_to_forum(request):
 
             post = Post.objects.create(
                 user=user, class_field=class_obj, title=title, content=content)
+            
+            #Generate AI Response
+            response = ''
+            try:
+                response = client.completions.create(model="gpt-3.5-turbo-instruct",
+                prompt="Respond to this question: Title: " + title + "body: " + content + "\n",
+                max_tokens=75)
+            except Exception as e:
+                print("An error occurred while generating the question:", e)
+
+            sub_post = Post.objects.create(
+                user=user,
+                class_field=class_obj,
+                title="GPT RESPONSE",
+                content=response.choices[0].text,
+            )
+            post.sub_posts.add(sub_post)
 
             return create_response({'message': 'Post created successfully'}, status=201)
 
@@ -382,7 +452,6 @@ def post_comment_to_forum(request):
     else:
         return create_response({'error': 'Invalid request method'}, status=400)
 
-
 @csrf_exempt
 def get_all_posts(request):
     if request.method == 'POST':
@@ -404,8 +473,9 @@ def get_all_posts(request):
 
             class_obj = Class.objects.get(pk=class_id)
 
+            # Fetch top level posts and order them by newest first
             top_level_posts = Post.objects.filter(
-                class_field=class_obj, parent_post__isnull=True)
+                class_field=class_obj, parent_post__isnull=True).order_by('-created_at')
 
             post_data = []
             for post in top_level_posts:
@@ -431,7 +501,6 @@ def get_all_posts(request):
             return create_response({'error': str(e)}, status=500)
     else:
         return create_response({'error': 'Invalid request method'}, status=400)
-
 
 @csrf_exempt
 def get_enrolled_classes(request):
