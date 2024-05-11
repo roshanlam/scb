@@ -46,7 +46,7 @@ def update_user_points(request):
         try:
             data = json.loads(request.body.decode('utf-8'))
             session_id = data.get('sessionID')
-            points_delta = data.get('pointsDelta')  # Assuming pointsDelta is sent in the request
+            points_delta = data.get('pointsDelta')
 
             email = get_session_user_data(session_id)
             if not email:
@@ -288,40 +288,6 @@ def get_post_comments(request):
         return create_response({'error': 'Invalid request method'}, status=400)
 
 @csrf_exempt
-def get_comment(request, comment_id):
-    try:
-        comment = Commment.objects.get(pk=comment_id)
-        return JsonResponse({'id': comment.id, 'content': comment.content}, status=200)
-    except Comment.DoesNotExist:
-        return JsonResponse({'error': 'Comment not found'}, status=404)
-
-@csrf_exempt
-def update_comment(request, comment_id):
-    try:
-        data = json.loads(request.body.decode('utf-8'))
-        session_id = request.session.session_key
-        content = data.get('content')
-
-        if not session_id:
-            return JsonResponse({'error': 'Session ID missing'}, status=400)
-
-        email = get_session_user_data(session_id)
-        if not email:
-            return JsonResponse({'error': 'Email not found in session data'}, status=400)
-
-        comment = Post.objects.get(pk=comment_id)  # Assuming comment_id is correct and exists
-        if not comment:
-            return JsonResponse({'error': 'Comment not found'}, status=404)
-
-        comment.content = content
-        comment.save()
-
-        return JsonResponse({'message': 'Comment updated successfully', 'id': comment.id, 'new_content': comment.content}, status=200)
-    except Exception as e:
-        return JsonResponse({'error': str(e)}, status=500)
-
-
-@csrf_exempt
 def enroll_in_class(request):
     if request.method == 'POST':
         try:
@@ -354,9 +320,7 @@ def enroll_in_class(request):
 @csrf_exempt
 def post_to_forum(request):
     if request.method == 'POST':
-        print(request.body)
         data = json.loads(request.body.decode('utf-8'))
-        print(data)
         try:
             data = json.loads(request.body.decode('utf-8'))
             session_id = data.get('sessionID')
