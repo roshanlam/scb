@@ -115,48 +115,34 @@ def post_class_video(request):
 
             # Convert transcript into a single string
             transcript_text = ' '.join([item['text'] for item in video_transcript])
-            print(transcript_text)
 
-            response = ''
-            try:
-                response = client.completions.create(model="gpt-3.5-turbo-instruct",
-                prompt="Write in format: 'QUESTION:(NEWLINE HERE) generate short single question based on this transcript: " + transcript_text + "(NEWLINE HERE) POSSIBLE ANSWERS:(NEWLINE HERE) generate 4 answer choices A,B,C,D(MAKE NEWLINE HERE FOR EACH POSSIBLE ANSWER) (NEWLINE HERE), ANSWER:(NEWLINE HERE) generate correct answer choice (NEWLINE HERE)",
-                max_tokens=150)
-            except Exception as e:
-                print("An error occurred while generating the question:", e)
+            response_summary = ''
+            gptPromptSummary=f"summarize this transcript in 40 words {transcript_text}",
+            summary = get_gpt_response(gptPromptSummary, 0, 150).choices[0].text
+            print(summary)
+
+            gptPromptQA=f"Based on summary {summary} Generate 1 short single question. (MAKE NEW LINE SPLIT). Generate possible answer A (NEWLINE). Generate possible answer B (NEWLINE). Generate possible answer C (NEWLINE). Generate possible answer D (NEWLINE). Generate correct answer choice ( dont add prefixes to your responses NEWLINE)",
+            response = get_gpt_response(gptPromptQA, 0, 150)
             
-            answers = []
-
-            gptResponse = response.choices[0].text
-            print(gptResponse)
-            split_text = gptResponse.split('\n')
+            # remove all instances of the word (NEWLINE)
+            gpt_response = re.sub(r'\(NEWLINE\)|\(NEWLINE HERE\)', '', response.choices[0].text)
+            print("GPT RESPONSE: ", gpt_response)
+            split_text = gpt_response.split('\n')
             filtered_list = [item for item in split_text if item.strip()]
             print(filtered_list)
+            question = filtered_list[0]
+            answers = [item[3:] for item in filtered_list[1:5]]
+            answer_choice = filtered_list[5][:3]
+            answer_index = ['A', 'B', 'C', 'D'].index(answer_choice[:1])
 
-            question = filtered_list[1]
-            answers.append(filtered_list[3][3:])
-            answers.append(filtered_list[4][3:])
-            answers.append(filtered_list[5][3:])
-            answers.append(filtered_list[6][3:])
-            answer = filtered_list[8][:3]
-            answer = answer[:1]
-            if answer == "A":
-                answer = 1
-            elif answer == "B":
-                answer = 2
-            elif answer == "C":
-                answer = 3
-            elif answer == "D":
-                answer = 4
-            
-            print("QUESTION: ", question)
-            print("ANSWERS:", answers)
-            print("ANSWER: ", answer)
+            print("Question: ", question)
+            print("Answers: ", answers)
+            print("Answer: ", answer_index)
 
             video_question = VideoQuestion.objects.create(
                 question=question,
                 answers=answers,
-                correct_answer_index=answer,
+                correct_answer_index=answer_index,
             )
 
             # Add the video to the class's video list
@@ -171,6 +157,17 @@ def post_class_video(request):
             return create_response({'error': str(e)}, status=500)
     else:
         return create_response({'error': 'Invalid request method'}, status=400)
+    
+def get_gpt_response(prompt, temp, tokens):
+    try:
+        response = client.completions.create(model="gpt-3.5-turbo-instruct",
+        prompt=prompt,
+        temperature=0,
+        max_tokens=200)
+        return response
+    except Exception as e:
+        print("An error occurred while generating the question:", e)
+        return None
 
 @csrf_exempt
 def get_class_video_list(request):
